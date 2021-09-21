@@ -16,6 +16,9 @@ debug = False
 # NEEDS TO MATCH PLANET PERIOD PERIODT
 dpd = 100 / 360.  # days per degree
 
+# Other parameters
+rarstar = 0.0024973   # r_asteroid [Rsun] / r_star [Rsun] (r_moon = 0.27 * r_earth)
+
 # 3 diagnostic histograms on top, 
 # 1 lc window on botom
 print("setting up plot")
@@ -67,7 +70,7 @@ ax.vlines([100 - 60*dpd, 100 + 60*dpd],-5e-5,1e-5,linestyle='dotted',alpha=0.9)
 ax.text(110, -1e-5,"L4 transit")
 ax.text(80, -1e-5, "L5 transit")
 
-ax.set_ylim(-50e-6,10e-6)
+ax.set_ylim(-200e-6,10e-6)
 ax.set_xlim(50,150) #150)
 ax.set_xlabel("Time [d]")
 ax.set_ylabel("Relative flux")

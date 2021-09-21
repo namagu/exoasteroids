@@ -14,6 +14,7 @@ import astropy.units as u
 #---------------------------------------------------------------
 #             Set up planet parameters
 #---------------------------------------------------------------
+print("Setting up star, planet model")
 
 # TODO: be fancy and pull from tango input.py
 rstar = 1.
@@ -45,17 +46,11 @@ plan_flux = m.light_curve(params) - 1.  # calculates light curve, start from 0 b
 #               Greeks: leading
 #               Trojans: trailing
 #---------------------------------------------------------------
+print("Setting up asteroid model")
 
-fig = plt.figure(figsize=(10,8))
-gs = gridspec.GridSpec(2,2)
-# axs = plt.subplots(2,2,sharey=False, sharex=False,gridspec_kw={'wspace':0.1, 'hspace':0.1}, figsize=(10,8))
 
-ax = fig.add_subplot(gs[1,:])
-ax_t0 = fig.add_subplot(gs[0,0])
-ax_inc = fig.add_subplot(gs[0,1])
-
-n_trojans = 3  #100     # this is a starting point
-n_greeks = 3  #100
+n_trojans = 100  #100     # this is a starting point
+n_greeks = 100  #100
 
 dpd = float(params.per) / 360.  # days per degree
 
@@ -69,20 +64,19 @@ g_t0_choices = params.t0 + 60*dpd + t0_scatter
 #random scatter in inclination
 inc_choices = np.random.normal(params.inc,10,1000) # FYI 13.7 deg is mean for Jupiter trojans 
 
-a,b,c = ax_t0.hist(np.abs(t_t0_choices),30,density=True)
-ax_t0.set_title("|t0 phase shift| distribution [days]")
-d,e,f = ax_inc.hist(inc_choices,30,density=True)
-ax_inc.set_title("inclination distribution [deg]")
-ax_inc.vlines(params.inc,0,0.05,linestyle='dotted')
-
 trojans = []  
 greeks = []
 
+all_t_b = []
+all_g_b = []
+
+debug = False   # if True, prints inc, b for each asteroid and adds them to lc plot
+
+print("Creating trojans")
 for trojan in range(n_trojans):
   t_params = batman.TransitParams()
   # t0 = t0_planet - trojan phase +/- random scatter
   t_params.t0 = np.random.choice(t_t0_choices,1,replace=False)[0]
-  
   t_params.per = 100.
   t_params.rp = rarstar * rstar 
   t_params.a = params.a   
@@ -95,14 +89,17 @@ for trojan in range(n_trojans):
   t_m = batman.TransitModel(t_params, t)
   t_flux = t_m.light_curve(t_params) - 1.  # set baseline flux = 0
   trojans.append(t_flux)
-  # print(f"t0 = {t_params.t0}d = {params.t0} - {60*dpd} trojan shift + {t0_scatter} scatter")
   #t_b = (np.sin(t_params.inc)*t_params.a) / rstar     # impact parameter
   t_b = (np.cos(np.deg2rad(t_params.inc))*t_params.a) / rstar
-  print(f"trojan {trojan} inc: {t_params.inc}, a: {t_params.a}, b = {t_b}")
-  ax.plot(t,t_flux,label=f"t {trojan} b = {t_b:0.3f}")
+  all_t_b.append(t_b)
+  if debug:
+    print(f"t0 = {t_params.t0}d = {params.t0} - {60*dpd} trojan shift + {t0_scatter} scatter")
+    print(f"trojan {trojan} inc: {t_params.inc}, a: {t_params.a}, b = {t_b}")
+    
+np.savez('trojan_array',trojans=trojans,all_t_b=all_t_b,t_t0_choices = t_t0_choices)
 
+print("Creating greeks")
 for greek in range(n_greeks):
-  
   g_params = batman.TransitParams()
   # t0 = t0_planet + greek phase +/- random scatter
   g_params.t0 = np.random.choice(g_t0_choices,1,replace=False)[0]
@@ -117,38 +114,24 @@ for greek in range(n_greeks):
   g_m = batman.TransitModel(g_params, t)
   g_flux = g_m.light_curve(g_params) - 1.  # set baseline flux = 0
   greeks.append(g_flux)
-  # print(f"t0 = {t_params.t0}d = {params.t0} - {60*dpd} trojan shift + {t0_scatter} scatter")
   #g_b = (np.sin(g_params.inc)*g_params.a) / rstar     # impact parameter
   g_b = (np.cos(np.deg2rad(g_params.inc))*g_params.a) / rstar
-  print(f"greek {greek} inc: {g_params.inc}, a: {g_params.a}, b = {g_b}")
-  ax.plot(t,g_flux,label=f"g {greek} b = {g_b:0.2f}")
+  all_g_b.append(g_b)
 
+  if debug:
+    print(f"t0 = {t_params.t0}d = {params.t0} - {60*dpd} trojan shift + {t0_scatter} scatter")
+    print(f"greek {greek} inc: {g_params.inc}, a: {g_params.a}, b = {g_b}")
+          
+np.savez('greek_array',greeks=greeks,all_g_b=all_g_b,g_t0_choices=g_t0_choices)
+
+print("Putting it all together")
 asteroids = np.append(greeks,trojans,axis=0)
 everything = np.append(asteroids,[plan_flux],axis=0)
 lc_everything = np.sum(everything, axis=0)
 
-#plt.plot(t,lc_everything,label="summed lc")
-ax.plot(t,plan_flux,label="planet")
-ax.ticklabel_format(style='sci',scilimits=[-1,1]) 
-# transit limits
-ax.vlines([100 - 60*dpd-12.5*dpd, 100 - 60*dpd+12.5*dpd],-5e-5,1e-5,linestyle='dotted',alpha=0.5)
-ax.vlines([100 + 60*dpd-12.5*dpd, 100 + 60*dpd+12.5*dpd],-5e-5,1e-5,linestyle='dotted',alpha=0.5)
-# L4, L5 crossings
-ax.vlines([100 - 60*dpd, 100 + 60*dpd],-5e-5,1e-5,linestyle='dotted',alpha=0.9)
-ax.text(110, -1e-5,"L4 transit")
-ax.text(80, -1e-5, "L5 transit")
+np.savez('lc_flux',t=t,plan_flux=plan_flux,everything=lc_everything)
 
-ax.set_ylim(-50e-6,10e-6)
-ax.set_xlim(50,150) #150)
-ax.set_xlabel("Time [d]")
-ax.set_ylabel("Relative flux")
-ax.text(100,0.5e-5,f"R_asteroid / Rstar = {rarstar}")
-ax.legend(loc="lower left")
-
-#ax1.hist()
-
-plt.show()
-
+np.savez('inc_choices',inc_choices=inc_choices)
 
 #---------------------------------------------------------------
 #             fsklafkjlsdaflksjaflks
