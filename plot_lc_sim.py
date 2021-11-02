@@ -43,31 +43,35 @@ inc_data = np.load('inc_choices.npz')
 
 # set up variables
 t = np.arange(0, 1000, 0.0001)
-all_g_b = g_data['all_g_b']
+#all_g_b = g_data['all_g_b']
 all_t_b = t_data['all_t_b']
 t_t0_choices = t_data['t_t0_choices']
-inc_choices = inc_data['inc_choices']
+sim_g_inc = inc_data['sim_g_inc']
+print(f"len(sim_g_inc) = {len(sim_g_inc)}")
+#inc_choices = inc_data['inc_choices']
 lc_everything = lc_data['everything']
 
 print("plotting")
 
 # t0 histogram, just for trojans, but representative of greeks also
-a,b,c = ax_t0.hist(np.abs(t_t0_choices),30,density=True)
+a,b,c = ax_t0.hist(np.abs(t_t0_choices),30)
 ax_t0.set_title("|t0 phase shift| distribution [days]")
 
+# impact parameters
+i,j,k = ax_b.hist(all_t_b,50) #np.append(all_g_b, all_t_b, axis=0)
+ax_b.set_title("impact parameter distribution")
+ax_b.vlines(1,0, 7000,linestyle='dotted')
+ax_b.vlines(-1,0, 7000 ,linestyle='dotted')
+
 # inclination histogram
-d,e,f = ax_inc.hist(inc_choices,30,density=True)
+d,e,f = ax_inc.hist(sim_g_inc,20) #inc_choices
 ax_inc.set_title("inclination distribution [deg]")
-ax_inc.vlines(pl_inc,0,0.05,linestyle='dotted')
+ax_inc.vlines(pl_inc,0,1,linestyle='dotted')
 
 #ax.plot(t,t_flux,label=f"t {trojan} b = {t_b:0.3f}")
 #ax.plot(t,g_flux,label=f"g {greek} b = {g_b:0.2f}")
 
-# impact parameters
-i,j,k = ax_b.hist(np.append(all_g_b, all_t_b, axis=0),30,density=True)
-ax_b.set_title("impact parameter distribution")
-ax_b.vlines(1,0, len(all_g_b)*2/30/100,linestyle='dotted')
-ax_b.vlines(-1,0,len(all_g_b)*2/30/100,linestyle='dotted')
+
 
 ax.plot(t,lc_everything,label="summed lc")
 
@@ -84,8 +88,8 @@ ax.text(110, -1e-5,"L4 transit")
 ax.text(80, -1e-5, "L5 transit")
 
 # how many of each transited
-ax.text(80, -6e-5, f"{t_data['n_t_visible'][0]}/{t_data['n_t_visible'][1]} trailing asteroids have |b|<1")
-ax.text(105, -6e-5, f"{g_data['n_g_visible'][0]}/{g_data['n_g_visible'][1]} leading asteroids have |b|<1")
+#ax.text(80, -6e-5, f"{t_data['n_t_visible'][0]}/{t_data['n_t_visible'][1]} trailing asteroids have |b|<1")
+#ax.text(105, -6e-5, f"{g_data['n_g_visible'][0]}/{g_data['n_g_visible'][1]} leading asteroids have |b|<1")
 
 ax.set_ylim(lc_everything.min() * 0.01, 10e-6)
 ax.set_xlim(100 - 25, 100 + 25) #150)

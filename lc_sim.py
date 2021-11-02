@@ -96,7 +96,7 @@ print(f"Planet T_dur should be {p_tdur:0.5}")
 #---------------------------------------------------------------
 
 n_trojans = 100  #100     # this is a starting point
-n_greeks = 100  #100
+n_greeks = n_trojans  #100
 
 print(f"Setting up asteroid model for {n_trojans} trailing, {n_greeks} leading")
 
@@ -109,14 +109,40 @@ t0_scatter = np.random.uniform((-12.5)*dpd, (12.5 )*dpd,1000) # days
 t_t0_choices = params.t0 - (60)*dpd + t0_scatter
 g_t0_choices = params.t0 + (60)*dpd + t0_scatter
 
-#random scatter in inclination
-inc_choices = np.random.normal(params.inc,10,1000) # FYI 13.7 deg is mean for Jupiter trojans 
-
 trojans = []  
 greeks = []
 
-all_t_b = []
-all_g_b = []
+# although b would normally be set by inc, a, Rstar, we are defining 
+#   |b| <= 1 so all our asteroids transit
+# for now, we assume a Gaussian distribution of impact parameters
+#  because we'd like most of our asteroids to have longer transit times
+#  chose 0.3 for the stddev because tails of distribution are <=1
+all_t_b = np.random.normal(0.,0.3,100000) # []
+all_g_b = all_t_b # being very lazy # []
+
+# impact parameters we actually use
+sim_t_b = []
+sim_g_b = []
+
+# inclinations we actually use
+sim_t_inc = []
+sim_g_inc = []
+
+# inclination set deterministically to always have objects transit
+def get_inc(b_values, Rstar, a):
+  """
+  returns b, inc: single inclination value calculated using planet's
+    a, Rstar and also the b randomly drawn from Gaussian distribution centered at 0.
+    b_values: array of values to draw from for b   
+  """
+  b = np.random.choice(b_values,1,replace=False)[0]
+  a = a * u.R_sun
+  Rstar = Rstar.to(u.R_sun)
+  return b, np.rad2deg(np.arccos(((b * Rstar) / a).value))
+  
+
+#random scatter in inclination
+# inc_choices = np.random.normal(params.inc,10,1000) # FYI 13.7 deg is mean for Jupiter trojans 
 
 debug = False   # if True, prints inc, b for each asteroid and adds them to lc plot
 
@@ -131,7 +157,7 @@ for trojan in range(n_trojans):
   t_params.per = 100. 
   t_params.rp = get_quantity_value(rarstar * rstar.to(u.R_sun))
   t_params.a = params.a   
-  t_params.inc = np.random.choice(inc_choices,1,replace=False)[0]
+  t_b, t_params.inc = get_inc(all_t_b, rstar, params.a) # np.random.choice(inc_choices,1,replace=False)[0]
   #t_params.inc = params.inc - np.random.choice(inc_scatter,1,replace=False)[0]
   t_params.ecc = params.ecc
   t_params.w = params.w
@@ -139,8 +165,9 @@ for trojan in range(n_trojans):
   t_params.limb_dark = "quadratic"       #limb darkening model
   t_m = batman.TransitModel(t_params, t)
   
-  t_b = get_b(t_params.inc * u.deg, t_params.a * u.R_sun) 
-  all_t_b.append(t_b)     # save impact parameter
+  #t_b = get_b(t_params.inc * u.deg, t_params.a * u.R_sun) 
+  sim_t_b.append(t_b)     # save impact parameter
+  sim_t_inc.append(t_params.inc) # save inclination
   
   if np.abs(t_b) < 1:
     t_flux = t_m.light_curve(t_params) - 1.  # set baseline flux = 0
@@ -155,7 +182,7 @@ for trojan in range(n_trojans):
 
 print(f"{t_transits}/{n_trojans} trailing asteroids have |b|<1")
 print("Saving trojans")
-np.savez('trojan_array',trojans = trojans, all_t_b = all_t_b, t_t0_choices = t_t0_choices, n_t_visible = [t_transits, n_trojans])
+np.savez('trojan_array',trojans = trojans, all_t_b = all_t_b, sim_t_b = sim_t_b, t_t0_choices = t_t0_choices, n_t_visible = [t_transits, n_trojans])
 
 print("Creating greeks")
 for greek in range(n_greeks):
@@ -165,15 +192,16 @@ for greek in range(n_greeks):
   g_params.per = 100.
   g_params.rp = get_quantity_value(rarstar * rstar.to(u.R_sun))
   g_params.a = params.a  
-  g_params.inc = np.random.choice(inc_choices,1,replace=False)[0]
+  g_b, g_params.inc = get_inc(all_t_b, rstar, params.a) # np.random.choice(inc_choices,1,replace=False)[0]
   g_params.ecc = params.ecc
   g_params.w = params.w
   g_params.u = [0.1,0.3]            #limb darkening coefficients [u1, u2]
   g_params.limb_dark = "quadratic"       #limb darkening model
   g_m = batman.TransitModel(g_params, t)
   
-  g_b = get_b(g_params.inc * u.deg, g_params.a * u.R_sun) # impact parameter
-  all_g_b.append(g_b)
+  # g_b = get_b(g_params.inc * u.deg, g_params.a * u.R_sun) # impact parameter
+  sim_g_b.append(g_b)
+  sim_g_inc.append(g_params.inc)
   
   if np.abs(g_b) < 1:
     g_flux = g_m.light_curve(g_params) - 1.  # set baseline flux = 0
@@ -189,7 +217,7 @@ for greek in range(n_greeks):
 print(f"{g_transits}/{n_greeks} leading asteroids have |b|<1")
 
 print("Saving greeks")
-np.savez('greek_array',greeks = greeks, all_g_b = all_g_b, g_t0_choices = g_t0_choices, n_g_visible = [g_transits, n_greeks])
+np.savez('greek_array',greeks = greeks, all_g_b = all_g_b, sim_g_b = sim_g_b, g_t0_choices = g_t0_choices, n_g_visible = [g_transits, n_greeks])
 
 print("Putting it all together")
 asteroids = np.append(greeks,trojans,axis=0)
@@ -198,7 +226,7 @@ lc_everything = np.sum(everything, axis=0)
 
 np.savez('lc_flux',t=t,plan_flux=plan_flux,everything=lc_everything)
 
-np.savez('inc_choices',inc_choices=inc_choices)
+np.savez('inc_choices', sim_t_inc = sim_t_inc, sim_g_inc = sim_g_inc) # inc_choices=inc_choices,
 
 #---------------------------------------------------------------
 #             fsklafkjlsdaflksjaflks
